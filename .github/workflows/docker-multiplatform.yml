@@ -5,8 +5,6 @@
 # This workflow builds container images for multiple architectures:
 #   - linux/amd64 (native on ubuntu-latest) - built on all triggers
 #   - linux/arm64 (native on ubuntu-24.04-arm) - skipped on PRs
-#   - linux/s390x (native on ubuntu-24.04-s390x) - skipped on PRs
-#   - linux/ppc64le (native on ubuntu-24.04-ppc64le) - skipped on PRs
 #
 # Pipeline:
 #   1. Build platform images in parallel (amd64 only on PRs)
@@ -76,20 +74,6 @@ jobs:
             qemu: false
             tag_only: false
             run_on_pr: false  # Skip on PRs to speed up CI
-          - platform: linux/s390x
-            runner: ubuntu-24.04-s390x
-            suffix: s390x
-            cache_mode: max
-            qemu: false
-            tag_only: false
-            run_on_pr: false
-          - platform: linux/ppc64le
-            runner: ubuntu-24.04-ppc64le
-            suffix: ppc64le
-            cache_mode: max
-            qemu: false
-            tag_only: false
-            run_on_pr: false
 
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
@@ -214,12 +198,9 @@ jobs:
 
           echo "Creating multiplatform manifest..."
 
-          # All four architectures are built on every non-PR push
           IMAGES=(
             "${IMAGE}:amd64-${SHA}"
             "${IMAGE}:arm64-${SHA}"
-            "${IMAGE}:s390x-${SHA}"
-            "${IMAGE}:ppc64le-${SHA}"
           )
 
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
