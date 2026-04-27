@@ -1,0 +1,82 @@
+name: Check Upstream Tags
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday at 09:00 UTC
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch upstream tags
+        run: |
+          git remote add upstream https://github.com/IBM/mcp-context-forge
+          git fetch upstream --tags
+
+      - name: Compare tags
+        id: compare
+        run: |
+          UPSTREAM_LATEST=$(git tag --sort=-creatordate | head -1)
+          FORK_BASE=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+
+          echo "upstream_latest=${UPSTREAM_LATEST}" >> "$GITHUB_OUTPUT"
+          echo "fork_base=${FORK_BASE}" >> "$GITHUB_OUTPUT"
+
+          if [ "${UPSTREAM_LATEST}" != "${FORK_BASE}" ]; then
+            echo "new_tag=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "new_tag=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open issue if new tag found
+        if: steps.compare.outputs.new_tag == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const upstream = '${{ steps.compare.outputs.upstream_latest }}';
+            const current = '${{ steps.compare.outputs.fork_base }}';
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'upstream-sync',
+            });
+
+            const alreadyOpen = issues.some(i => i.title.includes(upstream));
+            if (alreadyOpen) {
+              console.log(`Issue for ${upstream} already open, skipping.`);
+              return;
+            }
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Upstream released ${upstream} (fork is on ${current})`,
+              labels: ['upstream-sync'],
+              body: [
+                `IBM has released [${upstream}](https://github.com/IBM/mcp-context-forge/releases/tag/${upstream}).`,
+                `This fork is currently based on \`${current}\`.`,
+                '',
+                '## Steps to update',
+                '```bash',
+                `git fetch upstream --tags`,
+                `git reset --hard ${upstream}`,
+                '# Re-apply UBI9 patch to Containerfile.lite',
+                `git cherry-pick <ubi9-patch-commit>`,
+                `git push --force`,
+                '```',
+                '',
+                'Then create a new GitHub Release tagged `' + upstream + '-ubi9` to trigger the image build.',
+              ].join('\n'),
+            });
