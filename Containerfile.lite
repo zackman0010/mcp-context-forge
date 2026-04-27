@@ -127,7 +127,7 @@ RUN set -euo pipefail \
     && dnf install -y \
         python${PYTHON_VERSION} \
         python${PYTHON_VERSION}-devel \
-        binutils openssl-devel gcc postgresql-devel gcc-c++ curl libpq-devel \
+        binutils openssl-devel gcc postgresql-devel gcc-c++ libpq-devel \
     && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1 \
     && dnf clean all
 
